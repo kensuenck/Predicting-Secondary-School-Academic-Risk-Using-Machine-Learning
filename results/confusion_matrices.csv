@@ -1,0 +1,13 @@
+configuration,configuration_label,model,true_pass,false_risk_warning,missed_failure,correctly_identified_failure
+A,With first- and second-period grades,Naive baseline,241,24,8,122
+A,With first- and second-period grades,Logistic Regression,240,25,8,122
+A,With first- and second-period grades,Decision Tree,232,33,10,120
+A,With first- and second-period grades,Random Forest,241,24,9,121
+B,With first-period grade only,Naive baseline,227,38,26,104
+B,With first-period grade only,Logistic Regression,218,47,16,114
+B,With first-period grade only,Decision Tree,212,53,29,101
+B,With first-period grade only,Random Forest,223,42,27,103
+C,Without first- or second-period grades,Naive baseline,265,0,130,0
+C,Without first- or second-period grades,Logistic Regression,184,81,57,73
+C,Without first- or second-period grades,Decision Tree,159,106,50,80
+C,Without first- or second-period grades,Random Forest,217,48,75,55
