@@ -1,0 +1,61 @@
+configuration,configuration_label,model,metric,mean,standard_deviation,outer_folds
+A,With first- and second-period grades,Naive baseline,accuracy,0.9189873417721518,0.022994812815930327,5
+A,With first- and second-period grades,Naive baseline,balanced_accuracy,0.9239477503628446,0.02875598636014059,5
+A,With first- and second-period grades,Naive baseline,precision_risk,0.8361580474483701,0.033796269292894976,5
+A,With first- and second-period grades,Naive baseline,recall_risk,0.9384615384615385,0.05160156871153363,5
+A,With first- and second-period grades,Naive baseline,f1_risk,0.8838043746683268,0.03484423771151905,5
+A,With first- and second-period grades,Logistic Regression,accuracy,0.9037974683544304,0.029141428944864156,5
+A,With first- and second-period grades,Logistic Regression,balanced_accuracy,0.9047895500725689,0.02778618202834554,5
+A,With first- and second-period grades,Logistic Regression,precision_risk,0.823134034424357,0.061503628103308165,5
+A,With first- and second-period grades,Logistic Regression,recall_risk,0.9076923076923077,0.043852900965351486,5
+A,With first- and second-period grades,Logistic Regression,f1_risk,0.8619739532282763,0.038920619062573186,5
+A,With first- and second-period grades,Decision Tree,accuracy,0.8886075949367088,0.042362532989067093,5
+A,With first- and second-period grades,Decision Tree,balanced_accuracy,0.897387518142235,0.03372250633358658,5
+A,With first- and second-period grades,Decision Tree,precision_risk,0.785860833024348,0.07974112930514289,5
+A,With first- and second-period grades,Decision Tree,recall_risk,0.9230769230769231,0.02719641466102108,5
+A,With first- and second-period grades,Decision Tree,f1_risk,0.8471031615446517,0.04947340933909922,5
+A,With first- and second-period grades,Random Forest,accuracy,0.9139240506329115,0.024348587419837146,5
+A,With first- and second-period grades,Random Forest,balanced_accuracy,0.9182148040638607,0.02840242089778474,5
+A,With first- and second-period grades,Random Forest,precision_risk,0.8299682995803686,0.040543511321005435,5
+A,With first- and second-period grades,Random Forest,recall_risk,0.9307692307692308,0.050147710809251164,5
+A,With first- and second-period grades,Random Forest,f1_risk,0.8767535972545731,0.03562788014887249,5
+B,With first-period grade only,Naive baseline,accuracy,0.8379746835443036,0.03151873315946513,5
+B,With first-period grade only,Naive baseline,balanced_accuracy,0.8283018867924528,0.049082978070061324,5
+B,With first-period grade only,Naive baseline,precision_risk,0.7324939792648478,0.0311246125281715,5
+B,With first-period grade only,Naive baseline,recall_risk,0.8,0.10672643788855082,5
+B,With first-period grade only,Naive baseline,f1_risk,0.7622151941717936,0.05762755423291218,5
+B,With first-period grade only,Logistic Regression,accuracy,0.8379746835443038,0.03022110477547675,5
+B,With first-period grade only,Logistic Regression,balanced_accuracy,0.8420174165457184,0.03930095575828475,5
+B,With first-period grade only,Logistic Regression,precision_risk,0.7111154649947753,0.03345158691444527,5
+B,With first-period grade only,Logistic Regression,recall_risk,0.8538461538461538,0.06880209161537815,5
+B,With first-period grade only,Logistic Regression,f1_risk,0.7755376593015401,0.04564625836920046,5
+B,With first-period grade only,Decision Tree,accuracy,0.7924050632911392,0.01919715302291531,5
+B,With first-period grade only,Decision Tree,balanced_accuracy,0.8237300435413644,0.02360778169353044,5
+B,With first-period grade only,Decision Tree,precision_risk,0.6324618124618124,0.045546018638181245,5
+B,With first-period grade only,Decision Tree,recall_risk,0.9153846153846154,0.11013708510212582,5
+B,With first-period grade only,Decision Tree,f1_risk,0.742744329292609,0.020931779173768882,5
+B,With first-period grade only,Random Forest,accuracy,0.820253164556962,0.03276501039378427,5
+B,With first-period grade only,Random Forest,balanced_accuracy,0.8111756168359943,0.03914403225922819,5
+B,With first-period grade only,Random Forest,precision_risk,0.7047476184364394,0.0489156771408349,5
+B,With first-period grade only,Random Forest,recall_risk,0.7846153846153846,0.06986885432532672,5
+B,With first-period grade only,Random Forest,f1_risk,0.7413808508832992,0.048582351855873555,5
+C,Without first- or second-period grades,Naive baseline,accuracy,0.6708860759493671,0.0,5
+C,Without first- or second-period grades,Naive baseline,balanced_accuracy,0.5,0.0,5
+C,Without first- or second-period grades,Naive baseline,precision_risk,0.0,0.0,5
+C,Without first- or second-period grades,Naive baseline,recall_risk,0.0,0.0,5
+C,Without first- or second-period grades,Naive baseline,f1_risk,0.0,0.0,5
+C,Without first- or second-period grades,Logistic Regression,accuracy,0.6556962025316456,0.07402628616310608,5
+C,Without first- or second-period grades,Logistic Regression,balanced_accuracy,0.625834542815675,0.08314505403403051,5
+C,Without first- or second-period grades,Logistic Regression,precision_risk,0.4800136789013319,0.10039623144990553,5
+C,Without first- or second-period grades,Logistic Regression,recall_risk,0.5384615384615384,0.11854642313401878,5
+C,Without first- or second-period grades,Logistic Regression,f1_risk,0.5066746311436867,0.10657830177434391,5
+C,Without first- or second-period grades,Decision Tree,accuracy,0.6177215189873417,0.0729360014728503,5
+C,Without first- or second-period grades,Decision Tree,balanced_accuracy,0.6112481857764877,0.03629227056939288,5
+C,Without first- or second-period grades,Decision Tree,precision_risk,0.4568105591518904,0.08144186725666275,5
+C,Without first- or second-period grades,Decision Tree,recall_risk,0.5923076923076923,0.10391735450850999,5
+C,Without first- or second-period grades,Decision Tree,f1_risk,0.5059794372294373,0.02961387438129499,5
+C,Without first- or second-period grades,Random Forest,accuracy,0.6835443037974683,0.029686175695085,5
+C,Without first- or second-period grades,Random Forest,balanced_accuracy,0.6269956458635704,0.035257603121901876,5
+C,Without first- or second-period grades,Random Forest,precision_risk,0.5243360220342318,0.05405228171226725,5
+C,Without first- or second-period grades,Random Forest,recall_risk,0.4615384615384615,0.0769230769230769,5
+C,Without first- or second-period grades,Random Forest,f1_risk,0.4879997079332627,0.053898429474126,5
