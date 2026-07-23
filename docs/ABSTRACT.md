@@ -1,0 +1,11 @@
+# Abstract
+
+This study examines how accurately machine-learning models can identify secondary-school students at risk of failing Mathematics using academic, demographic, family and social information. It uses a publicly available dataset containing 395 students from two Portuguese public schools. Academic risk is defined as receiving a final Mathematics grade below 10 on a scale from 0 to 20.
+
+Three models are compared: Logistic Regression, Decision Tree and Random Forest. The models are tested using three sets of predictors: one containing both earlier Mathematics grades, one containing only the first-period grade and one excluding both earlier grades. To reduce the risk of overly optimistic results, model settings and data preparation are selected using only the training data, while separate unseen data are used to assess final performance.
+
+When both earlier grades are included, the models perform strongly. Random Forest correctly classifies approximately 91–92% of students and identifies more than 93% of those who later fail. However, a simple rule based on the second-period grade performs similarly, suggesting that the machine-learning models add little information beyond grades already available to teachers. When both earlier grades are removed, performance declines substantially. The models identify only around half of the students who fail and also produce many false warnings. Random Forest achieves 68.4% overall accuracy, only slightly higher than the 67.1% obtained by simply predicting that every student will pass. Previous class failures provide the strongest remaining signal, but the other academic, demographic and social variables contribute limited and unstable predictive information.
+
+The findings show that machine learning can predict final Mathematics failure reasonably well once earlier grades are known, but it is much less reliable without them. These models may support low-stakes professional review, but they should not be used to label students automatically, allocate support without human judgement or claim reliable prediction at the beginning of the school year.
+
+**Keywords:** academic risk; student performance; machine learning; educational data mining; secondary education; sustainable development.
