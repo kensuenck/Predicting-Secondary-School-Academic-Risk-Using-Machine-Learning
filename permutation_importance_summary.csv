@@ -1,0 +1,94 @@
+configuration,configuration_label,feature,mean_importance,standard_deviation,observations
+A,With first- and second-period grades,G2,0.30456458635703915,0.05174301871368187,50
+A,With first- and second-period grades,G1,0.09444847605224962,0.05062284058383014,50
+A,With first- and second-period grades,famsup,0.00461538461538461,0.008296521357440375,50
+A,With first- and second-period grades,internet,0.004027576197387499,0.0075381110576828066,50
+A,With first- and second-period grades,absences,0.003831640058055139,0.00698221302852821,50
+A,With first- and second-period grades,freetime,0.0028737300435413473,0.006777840413830117,50
+A,With first- and second-period grades,paid,0.002706821480406383,0.008228939496393728,50
+A,With first- and second-period grades,Fjob,0.002699564586357015,0.009071016853207131,50
+A,With first- and second-period grades,age,0.0026850507982583327,0.006446735148679943,50
+A,With first- and second-period grades,Walc,0.0024891146589259704,0.006071557593210206,50
+A,With first- and second-period grades,romantic,0.002322206095790995,0.00811014190985197,50
+A,With first- and second-period grades,studytime,0.0021335268505079607,0.00805083499354607,50
+A,With first- and second-period grades,reason,0.0019303338171262551,0.007237407562377625,50
+A,With first- and second-period grades,guardian,0.0017198838896952018,0.005007272991836337,50
+A,With first- and second-period grades,failures,0.0013715529753265377,0.00720348895550904,50
+A,With first- and second-period grades,goout,0.001320754716981114,0.005046265559797558,50
+A,With first- and second-period grades,Fedu,0.0011683599419448475,0.006017004902564516,50
+A,With first- and second-period grades,higher,0.0011320754716981018,0.003096799270370874,50
+A,With first- and second-period grades,Dalc,0.0009433962264150831,0.002858922295902449,50
+A,With first- and second-period grades,Medu,0.0007837445573294622,0.005749410485862652,50
+A,With first- and second-period grades,famsize,0.0007547169811320664,0.002585353920923268,50
+A,With first- and second-period grades,traveltime,0.0005660377358490454,0.0029588272776415094,50
+A,With first- and second-period grades,Mjob,0.0004063860667634067,0.0063967949932120845,50
+A,With first- and second-period grades,school,0.00038461538461538326,0.002719641466102096,50
+A,With first- and second-period grades,health,0.0001886792452830166,0.0013341637380878096,50
+A,With first- and second-period grades,Pstatus,7.256894049343377e-06,0.0038487167967222575,50
+A,With first- and second-period grades,sex,7.256894049343377e-06,0.00643191830481799,50
+A,With first- and second-period grades,address,0.0,0.0,50
+A,With first- and second-period grades,famrel,-0.0005660377358490565,0.0022631880894537276,50
+A,With first- and second-period grades,nursery,-0.0007547169811320842,0.002585353920923329,50
+A,With first- and second-period grades,schoolsup,-0.0011175616835994396,0.005655400533634768,50
+A,With first- and second-period grades,activities,-0.002641509433962279,0.0042788430906705215,50
+B,With first-period grade only,G1,0.26518867924528305,0.07183191868410153,50
+B,With first-period grade only,absences,0.007786647314949206,0.022654688623532804,50
+B,With first-period grade only,schoolsup,0.007692307692307705,0.0186923785177005,50
+B,With first-period grade only,sex,0.007060957910014518,0.018245052392288012,50
+B,With first-period grade only,age,0.0059288824383164004,0.021129420339937675,50
+B,With first-period grade only,romantic,0.004136429608127736,0.03225450795377164,50
+B,With first-period grade only,goout,0.0022206095791001547,0.03838200203530042,50
+B,With first-period grade only,Pstatus,0.002126269956458635,0.007345220155557166,50
+B,With first-period grade only,studytime,0.0017343976777939062,0.009034846473946118,50
+B,With first-period grade only,guardian,0.0015021770682148205,0.01453469400118325,50
+B,With first-period grade only,freetime,0.001182873730043521,0.010188914788877157,50
+B,With first-period grade only,traveltime,0.0011538461538461453,0.010576031074131933,50
+B,With first-period grade only,school,0.00020319303338172556,0.007119776241620085,50
+B,With first-period grade only,Fedu,-0.0001814223512336688,0.014434383735806699,50
+B,With first-period grade only,famsup,-0.0003265602322205896,0.009059484261624869,50
+B,With first-period grade only,internet,-0.00038461538461539215,0.007258156491001594,50
+B,With first-period grade only,Dalc,-0.0007692307692307843,0.019589450238696873,50
+B,With first-period grade only,higher,-0.0011103047895500472,0.012638891229674433,50
+B,With first-period grade only,Walc,-0.0015820029027576244,0.010872685988113024,50
+B,With first-period grade only,Fjob,-0.0025108853410740384,0.018172990133930915,50
+B,With first-period grade only,nursery,-0.0028882438316400628,0.011364738480860202,50
+B,With first-period grade only,address,-0.002902757619738747,0.011010994406680154,50
+B,With first-period grade only,famrel,-0.003084179970972418,0.01262013565154408,50
+B,With first-period grade only,failures,-0.003367198838896934,0.02264470379895378,50
+B,With first-period grade only,Medu,-0.0035994194484760666,0.013650781080990984,50
+B,With first-period grade only,reason,-0.003722786647314953,0.024380489466226837,50
+B,With first-period grade only,famsize,-0.004782293178519604,0.01271567398289779,50
+B,With first-period grade only,paid,-0.004992743105950646,0.016789815626046412,50
+B,With first-period grade only,Mjob,-0.0051886792452830255,0.018426762372602157,50
+B,With first-period grade only,activities,-0.006712626995645863,0.011491998289611914,50
+B,With first-period grade only,health,-0.007706821480406387,0.017348310791457898,50
+C,Without first- or second-period grades,failures,0.06865747460087085,0.05564333795433621,50
+C,Without first- or second-period grades,Medu,0.010486211901306242,0.0322794264313481,50
+C,Without first- or second-period grades,famrel,0.00927431059506532,0.025289739770722134,50
+C,Without first- or second-period grades,studytime,0.008098693759071112,0.014828683143934809,50
+C,Without first- or second-period grades,health,0.006944847605224964,0.021670485392861694,50
+C,Without first- or second-period grades,Fedu,0.005602322206095796,0.021805600779212956,50
+C,Without first- or second-period grades,goout,0.004622641509433965,0.021239535599911093,50
+C,Without first- or second-period grades,famsup,0.0035703918722786708,0.020462975923219755,50
+C,Without first- or second-period grades,freetime,0.0027648766328011542,0.01988583678897439,50
+C,Without first- or second-period grades,romantic,0.0025979680696661834,0.018157092343667712,50
+C,Without first- or second-period grades,address,0.002503628447024675,0.010535447141219383,50
+C,Without first- or second-period grades,Walc,0.0023439767779390476,0.01731058032485421,50
+C,Without first- or second-period grades,schoolsup,0.0011973875181422345,0.015739443932397658,50
+C,Without first- or second-period grades,famsize,0.000965166908563122,0.01627115911467193,50
+C,Without first- or second-period grades,Dalc,-0.0013280116110304795,0.012110006218360305,50
+C,Without first- or second-period grades,Mjob,-0.0016328011611030412,0.024269196847236107,50
+C,Without first- or second-period grades,school,-0.0018867924528301883,0.007180591722681601,50
+C,Without first- or second-period grades,guardian,-0.002322206095791013,0.020225200689889002,50
+C,Without first- or second-period grades,activities,-0.0024528301886792424,0.02124291928292067,50
+C,Without first- or second-period grades,Fjob,-0.002605224963715527,0.01948011081742553,50
+C,Without first- or second-period grades,internet,-0.00299709724238026,0.01749547841604236,50
+C,Without first- or second-period grades,age,-0.003084179970972425,0.022327482998723176,50
+C,Without first- or second-period grades,absences,-0.0044629898403483305,0.025039262388527894,50
+C,Without first- or second-period grades,paid,-0.0045428156748911494,0.016292056156679436,50
+C,Without first- or second-period grades,reason,-0.005043541364296082,0.020653775247024386,50
+C,Without first- or second-period grades,nursery,-0.005101596516690856,0.012588834179177399,50
+C,Without first- or second-period grades,higher,-0.005537010159651674,0.010731416174975536,50
+C,Without first- or second-period grades,Pstatus,-0.006966618287372987,0.016073852327028227,50
+C,Without first- or second-period grades,traveltime,-0.0072133526850507975,0.016234794747904322,50
+C,Without first- or second-period grades,sex,-0.008417997097242386,0.021247527814381096,50
