@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Reproduce the dissertation analysis on secondary-school academic risk.
 
-The script performs the following steps in one execution:
-1. loads and validates the public Mathematics dataset;
-2. defines academic risk as G3 < 10 (risk/failure is the positive class);
-3. evaluates Logistic Regression, Decision Tree and Random Forest models;
-4. uses leakage-controlled preprocessing pipelines;
-5. reports repeated stratified cross-validation results;
-6. runs nested cross-validation as a hyperparameter-tuning sensitivity analysis;
-7. produces out-of-fold confusion matrices, held-out permutation importance,
-   descriptive statistics, baselines, tables and figures.
+Primary design
+--------------
+Nested stratified five-fold cross-validation is the primary performance design.
+For every outer split, all preprocessing and hyperparameter selection occur only
+within the outer-training data. Three-fold inner cross-validation selects
+hyperparameters using balanced accuracy; the untouched outer-test fold estimates
+final performance. Each of the five outer folds is used once for held-out evaluation.
 
-All outputs are written to the directory supplied through --output-dir.
+The script also evaluates the naive baselines on the same outer test folds,
+creates one complete nested five-fold set of out-of-fold predictions for
+confusion matrices, and calculates Random Forest permutation importance only on
+held-out outer-test observations.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sklearn
-from sklearn.base import BaseEstimator, clone
+from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
@@ -44,20 +45,16 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import (
-    GridSearchCV,
-    RepeatedStratifiedKFold,
-    StratifiedKFold,
-    cross_val_predict,
-    cross_validate,
-)
+from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
-
 RANDOM_SEED = 42
 POSITIVE_LABEL = 1  # 1 = academic risk / final Mathematics failure
+OUTER_SPLITS = 5
+OUTER_REPEATS = 1
+INNER_SPLITS = 3
 
 
 @dataclass(frozen=True)
@@ -89,9 +86,6 @@ CONFIGURATIONS = (
     ),
 )
 
-MAIN_CONFIGURATION_CODES = {"A", "C"}
-
-
 METRIC_NAMES = (
     "accuracy",
     "balanced_accuracy",
@@ -102,9 +96,7 @@ METRIC_NAMES = (
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Run the complete dissertation modelling workflow."
-    )
+    parser = argparse.ArgumentParser(description="Run the dissertation modelling workflow.")
     parser.add_argument(
         "--data",
         type=Path,
@@ -115,12 +107,7 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=Path("results"),
-        help="Directory for all tables, figures and metadata.",
-    )
-    parser.add_argument(
-        "--nested-only",
-        action="store_true",
-        help="Run only the nested cross-validation sensitivity analysis. By default the script runs the primary analysis.",
+        help="Directory for tables, figures and metadata.",
     )
     return parser.parse_args()
 
@@ -128,8 +115,8 @@ def parse_args() -> argparse.Namespace:
 def load_and_validate_data(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(
-            f"Dataset not found at {path.resolve()}. "
-            "Place student-mat.csv beside the script or pass --data."
+            f"Dataset not found at {path.resolve()}. Place student-mat.csv beside "
+            "the script or pass --data."
         )
     df = pd.read_csv(path, sep=";")
     required = {"G1", "G2", "G3", "school", "sex", "age", "failures", "absences"}
@@ -148,8 +135,7 @@ def prepare_xy(
     df: pd.DataFrame, configuration: FeatureConfiguration
 ) -> tuple[pd.DataFrame, pd.Series]:
     y = (df["G3"] < 10).astype(int).rename("academic_risk")
-    drop_columns = ["G3", *configuration.excluded_columns]
-    X = df.drop(columns=drop_columns).copy()
+    X = df.drop(columns=["G3", *configuration.excluded_columns]).copy()
     return X, y
 
 
@@ -159,21 +145,20 @@ def split_columns(X: pd.DataFrame) -> tuple[list[str], list[str]]:
     return numeric, categorical
 
 
-def build_preprocessor(X: pd.DataFrame, scale_numeric: bool) -> ColumnTransformer:
+def build_preprocessor(
+    X: pd.DataFrame,
+    *,
+    scale_numeric: bool,
+    drop_reference_categories: bool,
+) -> ColumnTransformer:
     numeric_columns, categorical_columns = split_columns(X)
-    numeric_steps: list[tuple[str, Any]] = [
-        ("imputer", SimpleImputer(strategy="median")),
-    ]
+    numeric_steps: list[tuple[str, Any]] = [("imputer", SimpleImputer(strategy="median"))]
     if scale_numeric:
         numeric_steps.append(("scaler", StandardScaler()))
 
     return ColumnTransformer(
         transformers=[
-            (
-                "numeric",
-                Pipeline(numeric_steps),
-                numeric_columns,
-            ),
+            ("numeric", Pipeline(numeric_steps), numeric_columns),
             (
                 "categorical",
                 Pipeline(
@@ -181,7 +166,10 @@ def build_preprocessor(X: pd.DataFrame, scale_numeric: bool) -> ColumnTransforme
                         ("imputer", SimpleImputer(strategy="most_frequent")),
                         (
                             "encoder",
-                            OneHotEncoder(handle_unknown="ignore"),
+                            OneHotEncoder(
+                                handle_unknown="ignore",
+                                drop="first" if drop_reference_categories else None,
+                            ),
                         ),
                     ]
                 ),
@@ -193,20 +181,21 @@ def build_preprocessor(X: pd.DataFrame, scale_numeric: bool) -> ColumnTransforme
 
 
 def build_models(X: pd.DataFrame) -> dict[str, Pipeline]:
-    """Return fixed, pre-specified models for the primary repeated CV analysis.
-
-    These complexity-constrained settings are specified before evaluation. They are
-    not selected from the reported outer test results. Nested cross-validation below
-    assesses sensitivity to a limited set of alternative settings.
-    """
+    """Return pipelines whose hyperparameters are selected in inner CV."""
     return {
         "Logistic Regression": Pipeline(
             [
-                ("preprocess", build_preprocessor(X, scale_numeric=True)),
+                (
+                    "preprocess",
+                    build_preprocessor(
+                        X,
+                        scale_numeric=True,
+                        drop_reference_categories=True,
+                    ),
+                ),
                 (
                     "model",
                     LogisticRegression(
-                        C=1.0,
                         solver="liblinear",
                         class_weight="balanced",
                         max_iter=2000,
@@ -217,12 +206,17 @@ def build_models(X: pd.DataFrame) -> dict[str, Pipeline]:
         ),
         "Decision Tree": Pipeline(
             [
-                ("preprocess", build_preprocessor(X, scale_numeric=False)),
+                (
+                    "preprocess",
+                    build_preprocessor(
+                        X,
+                        scale_numeric=False,
+                        drop_reference_categories=False,
+                    ),
+                ),
                 (
                     "model",
                     DecisionTreeClassifier(
-                        max_depth=5,
-                        min_samples_leaf=5,
                         class_weight="balanced",
                         random_state=RANDOM_SEED,
                     ),
@@ -231,14 +225,17 @@ def build_models(X: pd.DataFrame) -> dict[str, Pipeline]:
         ),
         "Random Forest": Pipeline(
             [
-                ("preprocess", build_preprocessor(X, scale_numeric=False)),
+                (
+                    "preprocess",
+                    build_preprocessor(
+                        X,
+                        scale_numeric=False,
+                        drop_reference_categories=False,
+                    ),
+                ),
                 (
                     "model",
                     RandomForestClassifier(
-                        n_estimators=100,
-                        max_depth=5,
-                        min_samples_leaf=3,
-                        max_features="sqrt",
                         class_weight="balanced_subsample",
                         random_state=RANDOM_SEED,
                         n_jobs=1,
@@ -249,21 +246,20 @@ def build_models(X: pd.DataFrame) -> dict[str, Pipeline]:
     }
 
 
-def scoring_dictionary() -> dict[str, Any]:
-    from sklearn.metrics import make_scorer
-
+def parameter_grids() -> dict[str, dict[str, list[Any]]]:
+    """Limited, theory-informed grids searched only inside inner validation folds."""
     return {
-        "accuracy": "accuracy",
-        "balanced_accuracy": "balanced_accuracy",
-        "precision_risk": make_scorer(
-            precision_score, pos_label=POSITIVE_LABEL, zero_division=0
-        ),
-        "recall_risk": make_scorer(
-            recall_score, pos_label=POSITIVE_LABEL, zero_division=0
-        ),
-        "f1_risk": make_scorer(
-            f1_score, pos_label=POSITIVE_LABEL, zero_division=0
-        ),
+        "Logistic Regression": {"model__C": [0.1, 1.0, 10.0]},
+        "Decision Tree": {
+            "model__max_depth": [3, 5, None],
+            "model__min_samples_leaf": [3, 5],
+        },
+        "Random Forest": {
+            "model__n_estimators": [100],
+            "model__max_depth": [3, 5, None],
+            "model__min_samples_leaf": [3, 5],
+            "model__max_features": ["sqrt"],
+        },
     }
 
 
@@ -277,108 +273,153 @@ def calculate_metrics(y_true: Iterable[int], y_pred: Iterable[int]) -> dict[str,
         "recall_risk": recall_score(
             y_true, y_pred, pos_label=POSITIVE_LABEL, zero_division=0
         ),
-        "f1_risk": f1_score(
-            y_true, y_pred, pos_label=POSITIVE_LABEL, zero_division=0
-        ),
+        "f1_risk": f1_score(y_true, y_pred, pos_label=POSITIVE_LABEL, zero_division=0),
     }
 
 
-def naive_predictions(df: pd.DataFrame, config: FeatureConfiguration) -> np.ndarray:
-    if config.naive_source_grade is None:
-        # The majority class is pass (risk = 0).
-        return np.zeros(len(df), dtype=int)
-    # Original-study baseline: use the latest available period grade directly.
-    return (df[config.naive_source_grade] < 10).astype(int).to_numpy()
-
-
-def repeated_cv_analysis(
+def naive_test_predictions(
     df: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    fold_rows: list[dict[str, Any]] = []
-    summary_rows: list[dict[str, Any]] = []
-    confusion_rows: list[dict[str, Any]] = []
+    config: FeatureConfiguration,
+    train_index: np.ndarray,
+    test_index: np.ndarray,
+    y: pd.Series,
+) -> np.ndarray:
+    """Evaluate the baseline without using test outcomes to define its rule."""
+    if config.naive_source_grade is not None:
+        return (
+            df.iloc[test_index][config.naive_source_grade] < 10
+        ).astype(int).to_numpy()
+    majority_class = int(y.iloc[train_index].mode().iloc[0])
+    return np.full(len(test_index), majority_class, dtype=int)
 
-    repeated_cv = RepeatedStratifiedKFold(
-        n_splits=5, n_repeats=5, random_state=RANDOM_SEED
+
+def make_grid_search(
+    model_name: str,
+    pipeline: Pipeline,
+    *,
+    evaluation_number: int,
+) -> GridSearchCV:
+    inner_cv = StratifiedKFold(
+        n_splits=INNER_SPLITS,
+        shuffle=True,
+        random_state=RANDOM_SEED + evaluation_number,
     )
-    oof_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
+    return GridSearchCV(
+        estimator=clone(pipeline),
+        param_grid=parameter_grids()[model_name],
+        scoring="balanced_accuracy",
+        cv=inner_cv,
+        n_jobs=1,
+        refit=True,
+        error_score="raise",
+        return_train_score=False,
+    )
+
+
+def nested_analysis(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Run the primary nested CV, same-fold baselines and held-out importance.
+
+    The five outer folds together produce one prediction per student, so their
+    predictions also form the reported confusion matrices. Hyperparameters are
+    selected inside three-fold inner validation using balanced accuracy.
+    """
+    fold_rows: list[dict[str, Any]] = []
+    parameter_rows: list[dict[str, Any]] = []
+    confusion_rows: list[dict[str, Any]] = []
+    importance_rows: list[dict[str, Any]] = []
 
     for config in CONFIGURATIONS:
         X, y = prepare_xy(df, config)
         models = build_models(X)
+        outer_cv = StratifiedKFold(
+            n_splits=OUTER_SPLITS,
+            shuffle=True,
+            random_state=RANDOM_SEED,
+        )
+        predictions: dict[str, np.ndarray] = {
+            "Naive baseline": np.empty(len(y), dtype=int),
+            **{name: np.empty(len(y), dtype=int) for name in models},
+        }
 
-        baseline_pred = naive_predictions(df, config)
-        baseline_metrics = calculate_metrics(y, baseline_pred)
-        for metric, value in baseline_metrics.items():
-            summary_rows.append(
+        for outer_fold, (train_index, test_index) in enumerate(
+            outer_cv.split(X, y), start=1
+        ):
+            y_test = y.iloc[test_index]
+            baseline_pred = naive_test_predictions(
+                df, config, train_index, test_index, y
+            )
+            predictions["Naive baseline"][test_index] = baseline_pred
+            fold_rows.append(
                 {
                     "configuration": config.code,
                     "configuration_label": config.label,
                     "model": "Naive baseline",
-                    "metric": metric,
-                    "mean": value,
-                    "standard_deviation": 0.0,
-                    "evaluations": 1,
+                    "outer_fold": outer_fold,
+                    **calculate_metrics(y_test, baseline_pred),
                 }
             )
-        tn, fp, fn, tp = confusion_matrix(y, baseline_pred, labels=[0, 1]).ravel()
-        confusion_rows.append(
-            {
-                "configuration": config.code,
-                "configuration_label": config.label,
-                "model": "Naive baseline",
-                "true_pass": int(tn),
-                "false_risk_warning": int(fp),
-                "missed_failure": int(fn),
-                "correctly_identified_failure": int(tp),
-            }
-        )
 
-        for model_name, model in models.items():
-            cv_result = cross_validate(
-                model,
-                X,
-                y,
-                cv=repeated_cv,
-                scoring=scoring_dictionary(),
-                n_jobs=-1,
-                return_train_score=False,
-                error_score="raise",
-            )
-            for fold_index in range(len(cv_result["test_accuracy"])):
-                row: dict[str, Any] = {
-                    "configuration": config.code,
-                    "configuration_label": config.label,
-                    "model": model_name,
-                    "evaluation": fold_index + 1,
-                }
-                for metric in METRIC_NAMES:
-                    row[metric] = float(cv_result[f"test_{metric}"][fold_index])
-                fold_rows.append(row)
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+            y_train = y.iloc[train_index]
 
-            for metric in METRIC_NAMES:
-                values = np.asarray(cv_result[f"test_{metric}"], dtype=float)
-                summary_rows.append(
+            for model_name, pipeline in models.items():
+                search = make_grid_search(
+                    model_name, pipeline, evaluation_number=outer_fold
+                )
+                search.fit(X_train, y_train)
+                prediction = search.predict(X_test)
+                predictions[model_name][test_index] = prediction
+                fold_rows.append(
                     {
                         "configuration": config.code,
                         "configuration_label": config.label,
                         "model": model_name,
-                        "metric": metric,
-                        "mean": values.mean(),
-                        "standard_deviation": values.std(ddof=1),
-                        "evaluations": len(values),
+                        "outer_fold": outer_fold,
+                        **calculate_metrics(y_test, prediction),
+                    }
+                )
+                parameter_rows.append(
+                    {
+                        "configuration": config.code,
+                        "configuration_label": config.label,
+                        "model": model_name,
+                        "outer_fold": outer_fold,
+                        "inner_best_balanced_accuracy": float(search.best_score_),
+                        "best_parameters": json.dumps(
+                            search.best_params_, sort_keys=True
+                        ),
                     }
                 )
 
-            oof_pred = cross_val_predict(
-                model,
-                X,
-                y,
-                cv=oof_cv,
-                method="predict",
-                n_jobs=-1,
-            )
-            tn, fp, fn, tp = confusion_matrix(y, oof_pred, labels=[0, 1]).ravel()
+                if model_name == "Random Forest":
+                    importance = permutation_importance(
+                        search.best_estimator_,
+                        X_test,
+                        y_test,
+                        scoring="balanced_accuracy",
+                        n_repeats=10,
+                        random_state=RANDOM_SEED + outer_fold,
+                        n_jobs=1,
+                    )
+                    for feature_index, feature in enumerate(X.columns):
+                        for repetition, value in enumerate(
+                            importance.importances[feature_index], start=1
+                        ):
+                            importance_rows.append(
+                                {
+                                    "configuration": config.code,
+                                    "configuration_label": config.label,
+                                    "outer_fold": outer_fold,
+                                    "repetition": repetition,
+                                    "feature": feature,
+                                    "importance": float(value),
+                                }
+                            )
+
+        for model_name, prediction in predictions.items():
+            tn, fp, fn, tp = confusion_matrix(y, prediction, labels=[0, 1]).ravel()
             confusion_rows.append(
                 {
                     "configuration": config.code,
@@ -391,102 +432,9 @@ def repeated_cv_analysis(
                 }
             )
 
-    return (
-        pd.DataFrame(fold_rows),
-        pd.DataFrame(summary_rows),
-        pd.DataFrame(confusion_rows),
-    )
-
-
-def nested_parameter_grids() -> dict[str, dict[str, list[Any]]]:
-    """Limited, theory-informed grids used only inside inner validation folds."""
-    return {
-        "Logistic Regression": {
-            "model__C": [0.1, 1.0, 10.0],
-        },
-        "Decision Tree": {
-            "model__max_depth": [3, 5, None],
-            "model__min_samples_leaf": [3, 5],
-        },
-        "Random Forest": {
-            "model__n_estimators": [100],
-            "model__max_depth": [3, 5, None],
-            "model__min_samples_leaf": [3, 5],
-        },
-    }
-
-
-def nested_cv_analysis(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Nested CV sensitivity analysis for the two main feature configurations.
-
-    Outer test folds estimate performance. Inner validation folds select
-    hyperparameters using balanced accuracy. The outer test fold never influences
-    preprocessing or selection.
-    """
-    result_rows: list[dict[str, Any]] = []
-    parameter_rows: list[dict[str, Any]] = []
-    grids = nested_parameter_grids()
-
-    outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
-
-    for config in CONFIGURATIONS:
-        if config.code not in MAIN_CONFIGURATION_CODES:
-            continue
-        X, y = prepare_xy(df, config)
-        models = build_models(X)
-
-        for model_name, base_pipeline in models.items():
-            for outer_fold, (train_index, test_index) in enumerate(
-                outer_cv.split(X, y), start=1
-            ):
-                X_train = X.iloc[train_index]
-                X_test = X.iloc[test_index]
-                y_train = y.iloc[train_index]
-                y_test = y.iloc[test_index]
-
-                inner_cv = StratifiedKFold(
-                    n_splits=3,
-                    shuffle=True,
-                    random_state=RANDOM_SEED + outer_fold,
-                )
-                search = GridSearchCV(
-                    estimator=clone(base_pipeline),
-                    param_grid=grids[model_name],
-                    scoring="balanced_accuracy",
-                    cv=inner_cv,
-                    n_jobs=1,
-                    refit=True,
-                    error_score="raise",
-                    return_train_score=False,
-                )
-                search.fit(X_train, y_train)
-                prediction = search.predict(X_test)
-                metrics = calculate_metrics(y_test, prediction)
-                result_rows.append(
-                    {
-                        "configuration": config.code,
-                        "configuration_label": config.label,
-                        "model": model_name,
-                        "outer_fold": outer_fold,
-                        **metrics,
-                    }
-                )
-                parameter_rows.append(
-                    {
-                        "configuration": config.code,
-                        "configuration_label": config.label,
-                        "model": model_name,
-                        "outer_fold": outer_fold,
-                        "inner_best_balanced_accuracy": search.best_score_,
-                        "best_parameters": json.dumps(
-                            search.best_params_, sort_keys=True
-                        ),
-                    }
-                )
-
-    nested_folds = pd.DataFrame(result_rows)
+    folds = pd.DataFrame(fold_rows)
     summary_rows: list[dict[str, Any]] = []
-    for (config, label, model), group in nested_folds.groupby(
+    for (config, label, model), group in folds.groupby(
         ["configuration", "configuration_label", "model"], sort=False
     ):
         for metric in METRIC_NAMES:
@@ -496,84 +444,32 @@ def nested_cv_analysis(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
                     "configuration_label": label,
                     "model": model,
                     "metric": metric,
-                    "mean": group[metric].mean(),
-                    "standard_deviation": group[metric].std(ddof=1),
-                    "outer_folds": len(group),
+                    "mean": float(group[metric].mean()),
+                    "standard_deviation": float(group[metric].std(ddof=1)),
+                    "outer_folds": int(len(group)),
                 }
             )
-    return pd.DataFrame(summary_rows), pd.DataFrame(parameter_rows)
 
-
-def permutation_analysis(df: pd.DataFrame) -> pd.DataFrame:
-    rows: list[dict[str, Any]] = []
-    outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
-
-    for config in CONFIGURATIONS:
-        if config.code not in MAIN_CONFIGURATION_CODES:
-            continue
-        X, y = prepare_xy(df, config)
-        model = build_models(X)["Random Forest"]
-        for fold, (train_index, test_index) in enumerate(outer_cv.split(X, y), start=1):
-            fitted = clone(model).fit(X.iloc[train_index], y.iloc[train_index])
-            importance = permutation_importance(
-                fitted,
-                X.iloc[test_index],
-                y.iloc[test_index],
-                scoring="balanced_accuracy",
-                n_repeats=10,
-                random_state=RANDOM_SEED + fold,
-                n_jobs=1,
-            )
-            for feature_index, feature in enumerate(X.columns):
-                for repetition, value in enumerate(
-                    importance.importances[feature_index], start=1
-                ):
-                    rows.append(
-                        {
-                            "configuration": config.code,
-                            "configuration_label": config.label,
-                            "outer_fold": fold,
-                            "repetition": repetition,
-                            "feature": feature,
-                            "importance": float(value),
-                        }
-                    )
-    raw = pd.DataFrame(rows)
-    summary = (
-        raw.groupby(["configuration", "configuration_label", "feature"], as_index=False)
+    raw_importance = pd.DataFrame(importance_rows)
+    importance_summary = (
+        raw_importance.groupby(
+            ["configuration", "configuration_label", "feature"], as_index=False
+        )
         .agg(
             mean_importance=("importance", "mean"),
             standard_deviation=("importance", "std"),
             observations=("importance", "size"),
         )
-        .sort_values(["configuration", "mean_importance"], ascending=[True, False])
+        .sort_values(
+            ["configuration", "mean_importance"], ascending=[True, False]
+        )
     )
-    return summary
-
-
-def logistic_coefficients(df: pd.DataFrame) -> pd.DataFrame:
-    rows: list[dict[str, Any]] = []
-    for config in CONFIGURATIONS:
-        if config.code not in MAIN_CONFIGURATION_CODES:
-            continue
-        X, y = prepare_xy(df, config)
-        pipeline = build_models(X)["Logistic Regression"]
-        pipeline.fit(X, y)
-        feature_names = pipeline.named_steps["preprocess"].get_feature_names_out()
-        coefficients = pipeline.named_steps["model"].coef_[0]
-        for feature, coefficient in zip(feature_names, coefficients, strict=True):
-            rows.append(
-                {
-                    "configuration": config.code,
-                    "configuration_label": config.label,
-                    "encoded_feature": feature,
-                    "coefficient": float(coefficient),
-                    "absolute_coefficient": abs(float(coefficient)),
-                    "direction": "higher predicted risk" if coefficient > 0 else "lower predicted risk",
-                }
-            )
-    return pd.DataFrame(rows).sort_values(
-        ["configuration", "absolute_coefficient"], ascending=[True, False]
+    return (
+        folds,
+        pd.DataFrame(summary_rows),
+        pd.DataFrame(parameter_rows),
+        pd.DataFrame(confusion_rows),
+        importance_summary,
     )
 
 
@@ -585,7 +481,6 @@ def descriptive_statistics(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame
         "Passing students": labelled[labelled["academic_risk"] == 0],
         "Failing students": labelled[labelled["academic_risk"] == 1],
     }
-
     rows: list[dict[str, Any]] = []
 
     def add_continuous(name: str, column: str, use_median: bool = False) -> None:
@@ -604,8 +499,7 @@ def descriptive_statistics(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame
         row = {"characteristic": name}
         for group_name, group in groups.items():
             count = int((group[column] == positive).sum())
-            percent = 100 * count / len(group)
-            row[group_name] = f"{count} ({percent:.1f}%)"
+            row[group_name] = f"{count} ({100 * count / len(group):.1f}%)"
         rows.append(row)
 
     rows.append(
@@ -654,10 +548,14 @@ def original_study_comparison(summary: pd.DataFrame) -> pd.DataFrame:
             {"configuration": "C", "model": "Random Forest", "original_accuracy": 0.705},
         ]
     )
-    current = summary[summary["metric"] == "accuracy"].copy()
-    current = current[current["model"].isin(["Naive baseline", "Decision Tree", "Random Forest"])]
-    current = current.rename(
-        columns={"mean": "current_accuracy", "standard_deviation": "current_standard_deviation"}
+    current = summary[
+        (summary["metric"] == "accuracy")
+        & summary["model"].isin(["Naive baseline", "Decision Tree", "Random Forest"])
+    ].rename(
+        columns={
+            "mean": "current_accuracy",
+            "standard_deviation": "current_standard_deviation",
+        }
     )[
         [
             "configuration",
@@ -674,6 +572,17 @@ def original_study_comparison(summary: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def wide_summary_table(summary: pd.DataFrame) -> pd.DataFrame:
+    wide = summary.pivot_table(
+        index=["configuration", "configuration_label", "model"],
+        columns="metric",
+        values=["mean", "standard_deviation"],
+        aggfunc="first",
+    )
+    wide.columns = [f"{stat}_{metric}" for stat, metric in wide.columns]
+    return wide.reset_index()
+
+
 def create_figures(
     df: pd.DataFrame,
     summary: pd.DataFrame,
@@ -683,10 +592,9 @@ def create_figures(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     risk_counts = (df["G3"] < 10).value_counts().sort_index()
-    labels = ["Pass", "Fail"]
     values = [int(risk_counts.get(False, 0)), int(risk_counts.get(True, 0))]
     fig, ax = plt.subplots(figsize=(6.5, 4.2))
-    ax.bar(labels, values)
+    ax.bar(["Pass", "Fail"], values)
     ax.set_ylabel("Number of students")
     for index, value in enumerate(values):
         ax.text(index, value + 4, str(value), ha="center")
@@ -695,46 +603,38 @@ def create_figures(
     plt.close(fig)
 
     main = summary[
-        summary["configuration"].isin(["A", "C"])
+        summary["configuration"].isin(["A", "B", "C"])
         & summary["model"].isin(
             ["Naive baseline", "Logistic Regression", "Decision Tree", "Random Forest"]
         )
     ].copy()
     model_order = ["Naive baseline", "Logistic Regression", "Decision Tree", "Random Forest"]
-    config_order = ["A", "C"]
+    config_order = ["A", "B", "C"]
 
-    for metric, title, filename, ylabel in [
-        (
-            "balanced_accuracy",
-            "Balanced accuracy across feature configurations",
-            "balanced_accuracy.png",
-            "Balanced accuracy",
-        ),
-        (
-            "recall_risk",
-            "Recall for failing students across feature configurations",
-            "failure_recall.png",
-            "Recall for failing students",
-        ),
+    for metric, filename, ylabel in [
+        ("balanced_accuracy", "balanced_accuracy.png", "Balanced accuracy"),
+        ("recall_risk", "failure_recall.png", "Recall for failing students"),
     ]:
         metric_data = main[main["metric"] == metric]
         x = np.arange(len(model_order))
-        width = 0.36
-        fig, ax = plt.subplots(figsize=(9.2, 4.8))
+        width = 0.24
+        fig, ax = plt.subplots(figsize=(9.5, 4.9))
+        labels = {
+            "A": "G1 and G2",
+            "B": "G1 only",
+            "C": "No period grades",
+        }
         for position, config in enumerate(config_order):
             subset = metric_data[metric_data["configuration"] == config].set_index("model")
-            means = [subset.loc[m, "mean"] if m in subset.index else np.nan for m in model_order]
-            errors = [
-                subset.loc[m, "standard_deviation"] if m in subset.index else np.nan
-                for m in model_order
-            ]
+            means = [subset.loc[m, "mean"] for m in model_order]
+            errors = [subset.loc[m, "standard_deviation"] for m in model_order]
             ax.bar(
-                x + (position - 0.5) * width,
+                x + (position - 1) * width,
                 means,
                 width,
                 yerr=errors,
                 capsize=3,
-                label="With prior grades" if config == "A" else "Without prior grades",
+                label=labels[config],
             )
         ax.set_ylabel(ylabel)
         ax.set_xticks(x, model_order, rotation=15, ha="right")
@@ -744,9 +644,9 @@ def create_figures(
         fig.savefig(output_dir / filename, dpi=220)
         plt.close(fig)
 
-    for config, filename, title in [
-        ("A", "permutation_importance_with_grades.png", "Permutation importance with prior grades"),
-        ("C", "permutation_importance_without_grades.png", "Permutation importance without prior grades"),
+    for config, filename in [
+        ("A", "permutation_importance_with_grades.png"),
+        ("C", "permutation_importance_without_grades.png"),
     ]:
         subset = (
             permutation_summary[permutation_summary["configuration"] == config]
@@ -767,17 +667,6 @@ def create_figures(
         plt.close(fig)
 
 
-def wide_summary_table(summary: pd.DataFrame) -> pd.DataFrame:
-    wide = summary.pivot_table(
-        index=["configuration", "configuration_label", "model"],
-        columns="metric",
-        values=["mean", "standard_deviation"],
-        aggfunc="first",
-    )
-    wide.columns = [f"{stat}_{metric}" for stat, metric in wide.columns]
-    return wide.reset_index()
-
-
 def save_environment(output_dir: Path) -> None:
     metadata = {
         "python": sys.version,
@@ -788,6 +677,10 @@ def save_environment(output_dir: Path) -> None:
         "matplotlib": matplotlib.__version__,
         "joblib": joblib.__version__,
         "random_seed": RANDOM_SEED,
+        "outer_splits": OUTER_SPLITS,
+        "outer_repeats": 1,
+        "inner_splits": INNER_SPLITS,
+        "primary_design": "nested stratified five-fold cross-validation",
     }
     (output_dir / "software_environment.json").write_text(
         json.dumps(metadata, indent=2), encoding="utf-8"
@@ -809,53 +702,39 @@ def main() -> None:
     args = parse_args()
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    df = load_and_validate_data(args.data)
-
-    if args.nested_only:
-        nested_summary, nested_parameters = nested_cv_analysis(df)
-        nested_summary.to_csv(output_dir / "nested_cv_summary.csv", index=False)
-        nested_parameters.to_csv(
-            output_dir / "nested_cv_selected_hyperparameters.csv", index=False
-        )
-        save_environment(output_dir)
-        write_manifest(output_dir)
-        print(f"Nested sensitivity analysis completed. Outputs written to: {output_dir}")
-        return
-
     figures_dir = output_dir / "figures"
     figures_dir.mkdir(parents=True, exist_ok=True)
 
+    df = load_and_validate_data(args.data)
     descriptive, missing = descriptive_statistics(df)
     descriptive.to_csv(output_dir / "descriptive_statistics.csv", index=False)
     missing.to_csv(output_dir / "missing_values.csv", index=False)
 
-    folds, summary, confusion = repeated_cv_analysis(df)
-    folds.to_csv(output_dir / "repeated_cv_fold_results.csv", index=False)
-    summary.to_csv(output_dir / "repeated_cv_summary_long.csv", index=False)
+    folds, summary, selected_parameters, confusion, permutation_summary = nested_analysis(df)
+    folds.to_csv(output_dir / "nested_cv_fold_results.csv", index=False)
+    summary.to_csv(output_dir / "nested_cv_summary_long.csv", index=False)
     wide_summary_table(summary).to_csv(
-        output_dir / "repeated_cv_summary_wide.csv", index=False
+        output_dir / "nested_cv_summary_wide.csv", index=False
     )
+    selected_parameters.to_csv(
+        output_dir / "nested_cv_selected_hyperparameters.csv", index=False
+    )
+
     confusion.to_csv(output_dir / "confusion_matrices.csv", index=False)
-
-    comparison = original_study_comparison(summary)
-    comparison.to_csv(output_dir / "original_study_comparison.csv", index=False)
-
-    permutation_summary = permutation_analysis(df)
     permutation_summary.to_csv(
         output_dir / "permutation_importance_summary.csv", index=False
     )
 
-    coefficients = logistic_coefficients(df)
-    coefficients.to_csv(output_dir / "logistic_coefficients.csv", index=False)
+    comparison = original_study_comparison(summary)
+    comparison.to_csv(output_dir / "original_study_comparison.csv", index=False)
 
     create_figures(df, summary, permutation_summary, figures_dir)
     save_environment(output_dir)
     write_manifest(output_dir)
 
     print(f"Analysis completed. Outputs written to: {output_dir}")
-    print("Main repeated-CV summary:")
-    display = wide_summary_table(summary)
-    print(display.to_string(index=False))
+    print("Primary nested-CV summary:")
+    print(wide_summary_table(summary).to_string(index=False))
 
 
 if __name__ == "__main__":
